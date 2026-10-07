@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300" font-family="Arial, Helvetica, sans-serif">
-<rect width="720" height="300" fill="#ffffff"/>
-<text x="360" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#111">Simple Power Analysis: reading key bits off one trace</text>
-<path d="M30,200 L70,200 L75,120 L100,120 L105,200 L150,200 L155,120 L180,120 L185,200 L190,150 L210,150 L215,200 L260,200 L265,120 L290,120 L295,200 L300,150 L320,150 L325,200 L370,200 L375,120 L400,120 L405,200 L450,200 L455,120 L480,120 L485,200 L490,150 L510,150 L515,200 L690,200" fill="none" stroke="#be123c" stroke-width="3"/>
-<g text-anchor="middle" font-family="monospace" font-size="20" font-weight="bold">
-<text x="88" y="240" fill="#333">0</text><text x="180" y="240" fill="#dc2626">1</text><text x="278" y="240" fill="#dc2626">1</text><text x="388" y="240" fill="#333">0</text><text x="480" y="240" fill="#dc2626">1</text></g>
-<text x="360" y="275" text-anchor="middle" font-size="14" fill="#444">Big bump = square step. Extra small bump = extra multiply = key bit 1.</text>
-</svg>

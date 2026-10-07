@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="420" viewBox="0 0 780 420" font-family="Arial, Helvetica, sans-serif">
+<rect width="780" height="420" fill="#ffffff"/>
+<defs><marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+<text x="390" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#111">MESI: the 4 states of a cache block (simplified)</text>
+<circle cx="150" cy="130" r="55" fill="#fecaca" stroke="#dc2626" stroke-width="3"/>
+<text x="150" y="125" text-anchor="middle" font-size="26" font-weight="bold">M</text><text x="150" y="148" text-anchor="middle" font-size="12">Modified</text>
+<circle cx="630" cy="130" r="55" fill="#bbf7d0" stroke="#16a34a" stroke-width="3"/>
+<text x="630" y="125" text-anchor="middle" font-size="26" font-weight="bold">E</text><text x="630" y="148" text-anchor="middle" font-size="12">Exclusive</text>
+<circle cx="630" cy="320" r="55" fill="#bfdbfe" stroke="#2563eb" stroke-width="3"/>
+<text x="630" y="315" text-anchor="middle" font-size="26" font-weight="bold">S</text><text x="630" y="338" text-anchor="middle" font-size="12">Shared</text>
+<circle cx="150" cy="320" r="55" fill="#e5e7eb" stroke="#6b7280" stroke-width="3"/>
+<text x="150" y="315" text-anchor="middle" font-size="26" font-weight="bold">I</text><text x="150" y="338" text-anchor="middle" font-size="12">Invalid</text>
+<g stroke="#444" stroke-width="2" fill="none" marker-end="url(#m)">
+<path d="M205 130 L575 130"/>
+<path d="M630 185 L630 265"/>
+<path d="M575 320 L205 320"/>
+<path d="M150 265 L150 185"/>
+</g>
+<g font-size="13" fill="#222" text-anchor="middle">
+<text x="390" y="120">E to M: core writes (silent, no announcement)</text>
+<text x="715" y="228" text-anchor="start" transform="translate(-95,0)">another core reads</text>
+<text x="390" y="345">any state to I: another core writes</text>
+<text x="40" y="228" text-anchor="start">core reads/writes: I to E, S or M</text>
+</g>
+<text x="390" y="395" text-anchor="middle" font-size="14" font-weight="bold" fill="#be123c">Golden rule: many readers OR one writer, never both.</text>
+</svg>

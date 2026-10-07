@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300" viewBox="0 0 1000 300" font-family="Arial, Helvetica, sans-serif">
+<rect width="1000" height="300" fill="#ffffff"/>
+<defs><marker id="s" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+<text x="500" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#111">Spectre in 5 steps (concept only)</text>
+<g stroke="#333" stroke-width="2">
+<rect x="10" y="60" width="175" height="150" rx="10" fill="#ffe4e6"/>
+<rect x="205" y="60" width="175" height="150" rx="10" fill="#fef3c7"/>
+<rect x="400" y="60" width="175" height="150" rx="10" fill="#fecaca"/>
+<rect x="595" y="60" width="175" height="150" rx="10" fill="#e5e7eb"/>
+<rect x="790" y="60" width="200" height="150" rx="10" fill="#bbf7d0"/>
+</g>
+<g font-size="16" font-weight="bold" text-anchor="middle">
+<text x="97" y="90">1. TRAIN</text><text x="292" y="90">2. MISLEAD</text><text x="487" y="90">3. TRANSIENT READ</text><text x="682" y="90">4. SQUASH</text><text x="890" y="90">5. TIME IT</text></g>
+<g font-size="13" text-anchor="middle" fill="#222">
+<text x="97" y="120">Run a bounds check</text><text x="97" y="140">many times with valid</text><text x="97" y="160">input. Predictor learns</text><text x="97" y="180">"always in bounds".</text>
+<text x="292" y="120">Send an out-of-bounds</text><text x="292" y="140">index. Predictor still</text><text x="292" y="160">guesses "in bounds"</text><text x="292" y="180">and runs ahead.</text>
+<text x="487" y="120">CPU reads the secret</text><text x="487" y="140">and touches</text><text x="487" y="160">probe[secret], loading</text><text x="487" y="180">one cache line.</text>
+<text x="682" y="120">Check resolves: wrong!</text><text x="682" y="140">Results discarded...</text><text x="682" y="160">but the cache line</text><text x="682" y="180">stays loaded.</text>
+<text x="890" y="120">Flush+Reload: time each</text><text x="890" y="140">probe line. The FAST</text><text x="890" y="160">one reveals the secret</text><text x="890" y="180">value.</text>
+</g>
+<g stroke="#444" stroke-width="2" marker-end="url(#s)"><path d="M185 135 L203 135"/><path d="M380 135 L398 135"/><path d="M575 135 L593 135"/><path d="M770 135 L788 135"/></g>
+<text x="500" y="260" text-anchor="middle" font-size="15" fill="#b91c1c" font-weight="bold">Speculation deletes the result, but not the footprint.</text>
+</svg>

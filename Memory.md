@@ -159,4 +159,3 @@ When a set is full, one block is evicted. The usual rule is **LRU** (least recen
 
 ---
 
-*Source material: µArch Lab, Microarchitecture & SoC design, Deck 4 of 11, Parts 1-2.*

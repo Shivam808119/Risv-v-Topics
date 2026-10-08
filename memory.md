@@ -7,12 +7,12 @@
 ## Table of Contents
 1. [Why caches work](#1-why-caches-work)
 2. [How a cache finds things](#2-how-a-cache-finds-things)
-3. [Why misses happen (the three Cs)](#3-why-misses-happen-the-three-cs)
+3. [Offset — Which Byte?](#3-offset--which-byte)
 4. [Average Memory Access Time (AMAT)](#4-average-memory-access-time-amat)
 5. [Writes and other tricks](#5-writes-and-other-tricks)
 6. [Virtual memory and the TLB](#6-virtual-memory-and-the-tlb)
 7. [Coherence: many cores, one truth](#7-coherence-many-cores-one-truth)
-8. [Consistency: the order of everything](#8-consistency-the-order-of-everything)
+8. [8. Memory Consistency](#8-memory-consistency)
 
 ---
 
@@ -312,100 +312,326 @@ A **write buffer** temporarily holds data waiting to be written to the next memo
 
 ## 6. Virtual memory and the TLB
 
-Programs use **virtual addresses**; hardware translates them to **physical addresses**. Translation works in **pages** (commonly 4 KiB) using a **page table**.
 
-**Why?** Isolation (programs can't see each other), freedom of placement, and the ability to push rarely used pages to disk.
 
-**Analogy:** "Flat 1" exists in two buildings. The postal service knows which street each building is on.
+Memory is divided into **pages**, commonly **4 KiB**.
 
-### The TLB
-Page tables are multi-level (e.g. RISC-V Sv39 uses 3 levels = **3 extra memory reads** per access!). Far too slow, so we use the **TLB** (Translation Lookaside Buffer): a small, fast cache of recent translations.
-- TLB hit → ~1 cycle.
-- TLB miss → walk the page table.
+Virtual memory provides:
 
-**Neat trick:** L1 caches can be looked up *while* the TLB translates, using address bits translation doesn't change. That's why many L1s are **32 KiB, 8-way**: 32 KiB ÷ 8 = 4 KiB = exactly one page.
+- **Isolation:** One program cannot easily access another program's memory.
+- **Flexible placement:** A program's memory can be stored anywhere in RAM.
+- **Disk support:** Rarely used pages can be moved to disk.
+
+---
+
+### TLB (Translation Lookaside Buffer)
+
+The CPU needs a **page table** to translate virtual addresses into physical addresses.
+
+Checking the page table every time would be slow, so the CPU uses a **TLB**.
+
+> **TLB = A small, fast cache of recent address translations.**
+
+```text
+Virtual Address
+       ↓
+      TLB
+   ↙       ↘
+ Hit       Miss
+  ↓          ↓
+Physical   Page Table
+Address     Walk
+```
+
+- **TLB Hit:** Translation is found quickly.
+- **TLB Miss:** CPU must check the page table.
+
+---
+
+### RISC-V Sv39
+
+RISC-V **Sv39** uses a **3-level page table**.
+
+A TLB miss can therefore require multiple memory accesses to walk the page table before finding the physical address.
+
+---
+
+### TLB + L1 Cache
+
+The CPU can often look up the **L1 cache while the TLB is translating the address**.
+
+This saves time.
+
+The **page offset** does not change during translation, so it can be used to access the cache before translation is completely finished.
+
+For example:
+
+```text
+32 KiB L1 cache
+8-way associative
+
+32 KiB ÷ 8 = 4 KiB
+```
+
+Since a typical page is **4 KiB**, this arrangement allows efficient parallel TLB and L1 cache lookup.
 
 ---
 
 ## 7. Coherence: many cores, one truth
 
-### The problem
-Two cores both cache `X = 5`. Core 0 writes `X = 9` in its own cache. Core 1 still reads **5** (stale!).
 
-**Cache coherence** = hardware guarantee that, for each location, all cores see the latest write, and see writes in the same order.
 
-### Two ways to keep watch
-| Method | How | Trade-off |
-|---|---|---|
-| **Snooping** | every cache listens on shared wires; writes are announced to all | simple, quick, but doesn't scale past ~a dozen cores |
-| **Directory** | a central record says which cores hold each block; messages go only to them | scales to many cores, costs storage |
 
-*Snooping = shouting across an open office. Directory = a receptionist who knows whom to phone.*
+### The Problem
 
-### The MESI protocol
+In a multicore CPU, different cores can have their own copies of the same data.
 
-![MESI states](images/mesi-states.svg)
+Example:
 
-| State | Meaning | Matches memory? | Others may hold it? |
-|---|---|---|---|
-| **M**odified | only copy, changed | no (memory stale) | no |
-| **E**xclusive | only copy, unchanged | yes | no |
-| **S**hared | read-only copy | yes | yes |
-| **I**nvalid | unusable | — | — |
+```text
+Core 0 Cache → X = 5
+Core 1 Cache → X = 5
+```
 
-**Golden rule: many readers, or one writer, never both.** To write, a core must first make every other copy Invalid.
+If Core 0 changes X:
 
-**Why "E" exists:** a core reading data nobody else has can later write it with **no announcement**. Great for private data.
+```text
+Core 0 Cache → X = 9
+Core 1 Cache → X = 5  ❌
+```
 
-**Try this script:** Core 0 reads → Core 1 reads → Core 1 writes → Core 0 reads.
-1. Core 0 reads: Core 0 = **E**.
-2. Core 1 reads: both = **S**.
-3. Core 1 writes: Core 1 = **M**, Core 0 = **I**, memory is stale.
-4. Core 0 reads: Core 1 supplies data + writes back; both = **S**.
+Core 1 now has **stale data**.
 
-### A trap: false sharing
-
-![False sharing](images/false-sharing.svg)
-
-Coherence works on whole 64-byte blocks. If core 0 updates `A` and core 1 updates `B`, and both sit in the **same block**, every write invalidates the other's copy. No data is truly shared, yet performance can drop **10× or more**. **Fix:** place such variables in separate blocks.
+> **Cache coherence keeps shared data consistent between CPU cores.**
 
 ---
 
-## 8. Consistency: the order of everything
+### How Do Cores Keep Coherent?
 
-**Coherence** = agreement about **one** location.
-**Consistency** = the order in which writes to **different** locations appear to others.
+There are two common approaches:
 
-| Model | Rule | Used by |
-|---|---|---|
-| **Sequential consistency** | as if cores take turns in program order; intuitive but forbids many speed tricks | no mainstream fast CPU |
-| **TSO** (total store order) | a load may overtake an earlier store to a different address (stores wait in a buffer) | x86, SPARC |
-| **Weak / relaxed** | almost any independent pair may be reordered | Arm, RISC-V (RVWMO), Power |
+#### 1. Snooping
 
-### Why it matters
+Each cache **listens to the other caches**.
+
+When one core changes data, other caches are notified.
+
+> **Snooping = Everyone listens to everyone.**
+
+Simple and fast, but becomes difficult to scale to many cores.
+
+#### 2. Directory
+
+A **directory keeps track of which cores have each cache block**.
+
+When a core changes data, the directory tells only the relevant cores.
+
+> **Directory = A manager keeps track of who has the data.**
+
+More scalable for systems with many cores, but requires extra storage and communication.
+
+### Easy Analogy
+
+> **Snooping = Shouting in an office so everyone hears.**  
+> **Directory = Receptionist who knows exactly whom to contact.**
 ```
-Core 0          Core 1
-A = 1           B = 1
-r0 = B          r1 = A
+
 ```
-Both start at 0. Under sequential consistency, at least one of r0/r1 is 1. With store buffers (TSO), both stores may still be waiting, so **r0 = r1 = 0 is possible**.
+## 8. MESI Cache Coherence Protocol
+
+MESI keeps shared data consistent between CPU caches.
+
+<img width="780" height="420" alt="image" src="https://github.com/user-attachments/assets/f12870ab-c156-4a59-987f-9c501e2cead3" />
+
+
+### MESI States
+
+| State | Meaning |
+|---|---|
+| **M — Modified** | Only this cache has the block, and it has been changed. |
+| **E — Exclusive** | Only this cache has the block, and it is unchanged. |
+| **S — Shared** | Multiple caches have the same clean copy. |
+| **I — Invalid** | The cache copy cannot be used. |
+
+> **M = Changed and only me**  
+> **E = Clean and only me**  
+> **S = Shared with others**  
+> **I = Not usable**
+
+### Golden Rule
+
+> **Many readers OR one writer — never both.**
+
+When a core wants to write to a shared block, the other copies become **Invalid**.
+
+### MESI Example
+
+```text
+Core 0 reads
+→ Core 0 = E
+
+Core 1 reads
+→ Core 0 = S
+→ Core 1 = S
+
+Core 1 writes
+→ Core 0 = I
+→ Core 1 = M
+
+Core 0 reads
+→ Core 1 supplies the latest data
+→ Core 0 = S
+→ Core 1 = S
+```
+
+### Why E Exists
+
+If only one core has a clean copy, it gets the **E (Exclusive)** state.
+
+When it writes:
+
+```text
+E → M
+```
+
+### False Sharing
+
+
+False sharing is a **performance problem caused by cache coherence**.
+
+Cache coherence works on the **whole cache line**, commonly **64 bytes**, not individual variables.
+
+If two different variables `A` and `B` are in the same cache line:
+
+```text
+One 64-byte cache line
+┌───────────────┬───────────────┐
+│      A        │       B       │
+└───────────────┴───────────────┘
+     ↑                 ↑
+  Core 0             Core 1
+ writes A            writes B
+```
+
+<img width="760" height="330" alt="image" src="https://github.com/user-attachments/assets/228ce2ec-436a-44d4-b0c6-20f34dd37301" />
+
+
+## 8. Memory Consistency
+
+**Cache coherence** and **memory consistency** are different.
+
+- **Coherence:** Keeps the value of one memory location consistent between cores.
+- **Consistency:** Defines the order in which memory operations become visible to other cores.
+
+> **Coherence = What value?**  
+> **Consistency = What order?**
+
+### Example
+
+```text
+Core 0              Core 1
+
+A = 1               B = 1
+r0 = B              r1 = A
+```
+
+Initially:
+
+```text
+A = 0
+B = 0
+```
+
+With a weak memory model, both cores may see:
+
+```text
+r0 = 0
+r1 = 0
+```
+
+This can happen because stores may still be waiting in **store buffers** while the cores continue with later operations.
+
+---
+
+### Memory Models
+
+Different CPUs provide different ordering guarantees:
+
+| Model | Main idea |
+|---|---|
+| **Sequential Consistency** | Operations appear in one global order. |
+| **TSO** | Allows some reordering; used by x86. |
+| **Weak / Relaxed** | Allows more reordering for better performance; used by Arm and RISC-V. |
+
+> **Weaker ordering gives the CPU more freedom to improve performance.**
+
+---
 
 ### Fences
-A **fence** (memory barrier) forces earlier memory operations to finish before later ones start.
 
+A **fence** (memory barrier) forces memory operations to follow a required order.
+
+```text
+Store A = 1
+    ↓
+  FENCE
+    ↓
+Store B = 1
 ```
-x86     MFENCE
-Arm     DMB
-RISC-V  FENCE rw,rw
+
+Common examples:
+
+```text
+x86    → MFENCE
+Arm    → DMB
+RISC-V → FENCE
 ```
 
-Languages wrap these in "atomics", but locks and flags rely on them.
-
-> ⚠️ **Misconception:** "Coherence and consistency are the same." No. A perfectly coherent machine can still show writes to X and Y out of order. Fences fix *ordering*; they don't make caches coherent (they already are).
-
-### Bigger systems
-- **NUMA**: in big servers each chip owns part of memory; its own part is fast, others slower. Place data near the core using it.
-- **Roofline**: plot speed vs. "calculations per byte fetched". Little work per byte → you hit the slanted **memory roof**; lots → the flat **compute roof**. It's the memory wall drawn as a line.
+Fences are important when multiple cores communicate using shared memory.
 
 ---
+
+### NUMA
+
+**NUMA (Non-Uniform Memory Access)** is used in large multi-CPU systems.
+
+Each CPU may have its own local memory:
+
+```text
+CPU 0 → Local RAM 0
+CPU 1 → Local RAM 1
+```
+
+A CPU can access its local RAM faster than another CPU's RAM.
+
+> **NUMA = Memory access speed depends on where the memory is located.**
+
+---
+
+### Roofline Model
+
+The **Roofline model** helps determine whether a program is limited by **memory** or **computation**.
+
+```text
+Low work per byte
+      ↓
+Memory is the bottleneck
+
+High work per byte
+      ↓
+CPU/GPU computation is the bottleneck
+```
+
+It uses **arithmetic intensity**:
+
+> **Arithmetic intensity = Computation ÷ Bytes moved from memory**
+
+
+```text
+Coherence    → Keeps one memory location consistent
+Consistency  → Controls the order of memory operations
+Fences       → Force memory ordering
+NUMA         → Memory speed depends on location
+Roofline     → Shows memory vs compute bottleneck
+```
 

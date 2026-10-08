@@ -1,7 +1,5 @@
 # Caches & Coherence 
 
-> Based on **Deck 4 of µArch Lab**. This guide explains how computers hide slow memory using caches, and how many CPU cores keep their copies of data in agreement.
-
 **The "memory wall** : Memory wall is the performance gap between the CPU and RAM, causing the CPU to wait for data from memory.
 
 ---

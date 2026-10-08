@@ -164,7 +164,7 @@ Here, the program checks **every byte** and does not stop early.
 
 
 
-![Cache Timing Attack](images/cache-timing-attack.png)
+![Cache Timing Attack](images/cache-hit-miss.svg)
 
 The shared cache acts like a **stopwatch that remembers what the victim accessed**.
 

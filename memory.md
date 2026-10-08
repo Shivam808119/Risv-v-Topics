@@ -1,8 +1,8 @@
-# Caches & Coherence — Explained Simply
+# Caches & Coherence 
 
 > Based on **Deck 4 of µArch Lab**. This guide explains how computers hide slow memory using caches, and how many CPU cores keep their copies of data in agreement.
 
-**Prerequisite idea (the "memory wall"):** a CPU can do work far faster than main memory can supply data. Everything below is about working around that gap.
+**The "memory wall** : Memory wall is the performance gap between the CPU and RAM, causing the CPU to wait for data from memory.
 
 ---
 
@@ -15,8 +15,6 @@
 6. [Virtual memory and the TLB](#6-virtual-memory-and-the-tlb)
 7. [Coherence: many cores, one truth](#7-coherence-many-cores-one-truth)
 8. [Consistency: the order of everything](#8-consistency-the-order-of-everything)
-9. [Check yourself](#9-check-yourself)
-10. [Cheat sheet](#10-cheat-sheet)
 
 ---
 
@@ -60,7 +58,7 @@ Programs behave predictably, in two ways:
 | **Temporal locality** | Used now → likely used again soon | loop counter, top of stack | keep recently used data |
 | **Spatial locality** | Used address A → nearby addresses likely used | walking through an array | fetch a whole neighbourhood at once |
 
-That neighbourhood is a **cache line** (block): the unit a cache moves and stores, typically **64 bytes**.
+**cache line** is the small block of data that the cache stores or transfers at one time. if the cache line is 64 bytes, the CPU gets 64 bytes of nearby data from RAM into the cache, even if it only requested a few bytes.
 
 ---
 
@@ -70,9 +68,87 @@ Every address is cut into three pieces:
 
 ![Address split into tag, index, offset](images/address-split.svg)
 
-- **Offset**: which byte *inside* the block (64-byte block → 6 bits).
-- **Index**: which *set* (row) of the cache to look in.
-- **Tag**: the rest. Stored with the block and compared to confirm "yes, this is the block I wanted."
+
+
+### 1. Index — Where to Look
+
+The **Index** tells the cache which **set** to look in.
+
+```text
+Index = 5
+
+Cache:
+Set 0
+Set 1
+Set 2
+Set 3
+Set 4
+Set 5  ← Look here
+Set 6
+```
+
+So:
+
+> **Index = Where should I look?**
+
+---
+
+### 2. Tag — Is It the Right Data?
+
+After finding the correct set, the cache checks the **Tag**.
+
+The tag tells the cache whether the block stored there is the block the CPU requested.
+
+```text
+Requested Tag = 1010
+Stored Tag    = 1010
+
+Match → Cache Hit ✅
+```
+
+If they don't match:
+
+```text
+Requested Tag = 1010
+Stored Tag    = 1100
+
+No match → Cache Miss ❌
+```
+
+So:
+
+> **Tag = Is this the data I am looking for?**
+
+---
+
+### 3. Offset — Which Byte?
+
+A cache line contains multiple bytes.
+
+For example, if one cache line contains **64 bytes**:
+
+```text
+Cache Line
+┌──────────────────────────────┐
+│ 0  1  2  3 ... 60  61 62 63 │
+└──────────────────────────────┘
+```
+
+The **Offset** tells the cache which byte inside the cache line the CPU wants.
+
+Because there are 64 bytes:
+
+```text
+64 = 2⁶
+```
+
+So we need **6 offset bits**.
+
+> **Offset = Which byte inside the block?**
+
+---
+
+
 
 ### Where may a block live?
 
@@ -86,38 +162,71 @@ Every address is cut into three pieces:
 
 When a set is full, one block must be evicted. **LRU** (least recently used) evicts the one untouched for longest.
 
-### Mini example
-A tiny cache of 4 blocks, reading an array twice: the first pass **misses** every block (first touch); the second pass **hits** every time. With bigger blocks (8 bytes), one miss brings in neighbours too, so misses halve. That's spatial locality in action.
+
 
 ---
 
-## 3. Why misses happen (the three Cs)
+## Why Cache Misses Happen — The Three Cs
 
-| Kind | Cause | Cure |
+A **cache miss** happens when the CPU asks for data that is not currently in the cache.
+
+### 1. Compulsory Miss
+
+The CPU is accessing the block **for the first time**.
+
+> **Compulsory = First time seeing the data.**
+
+**Solution:** Prefetching or larger blocks.
+
+---
+
+### 2. Capacity Miss
+
+The cache is **too small** to hold all the data the program needs.
+
+> **Capacity = Not enough space.**
+
+**Solution:** Increase cache size.
+
+---
+
+### 3. Conflict Miss
+
+The cache has free space, but multiple blocks are forced into the **same set** and replace each other.
+
+> **Conflict = Blocks fight for the same place.**
+
+**Solution:** Increase associativity.
+
+---
+
+### 4. Coherence Miss
+
+Occurs in **multicore CPUs** when another core changes shared data in your cache.
+
+> **Coherence = Another core changed the data.**
+
+---
+
+## Cache Design Trade-offs
+
+| Increase | Benefit | Cost |
 |---|---|---|
-| **Compulsory** (cold) | first touch of a block | bigger blocks, prefetching |
-| **Capacity** | working data doesn't fit | bigger cache |
-| **Conflict** | too many busy blocks map to the same set while the cache has room elsewhere | more associativity |
+| **Cache size** | Fewer capacity misses | More area & power |
+| **Associativity** | Fewer conflict misses | More tag comparisons |
+| **Block size** | Fewer compulsory misses | More data transferred |
 
-A **conflict miss** is one a fully associative cache of the same size would have avoided. (Multicore adds a 4th C: **coherence** misses, covered later.)
+### Common Block Size
 
-### Examples
-- **Conflict:** addresses 0 and 16 map to the same set in a direct-mapped cache and keep evicting each other. A 2-way cache fixes it: after 2 misses, all hits.
-- **Capacity:** 5 blocks cycle through a 4-block cache with LRU. Each block is evicted *just before* it's needed again, so everything misses. Only a bigger cache helps.
+**64 bytes** is commonly used as a cache-line size because it provides a good balance between performance and efficiency.
 
-### Every knob has a price
 
-| Turn up… | Compulsory | Capacity | Conflict | Price |
-|---|---|---|---|---|
-| Cache size | — | fewer | fewer | slower hits, more area/power |
-| Associativity | — | — | many fewer | slower hits (more tags to compare) |
-| Block size | fewer | can rise | can rise | each miss fetches more bytes |
-
-64 bytes is the near-universal sweet spot for block size.
 
 ---
 
 ## 4. Average Memory Access Time (AMAT)
+
+AMAT (Average Memory Access Time) is the average time the CPU takes to get data from the memory system, including both cache hits and misses.
 
 ```
 AMAT = hit time + miss rate × miss penalty
@@ -149,29 +258,57 @@ L1 level:   1 + 0.05 ×  68 = 4.4 cycles
 
 **4.4 cycles instead of 9.** Note: these are **local** miss rates (misses ÷ accesses *reaching* that level). Mixing local and global rates is a classic mistake.
 
-### How levels are arranged
-- **L1 is split** into instruction + data caches.
-- **L2/L3 are unified** (instructions and data together).
-- **Private vs shared:** each core usually has its own L1/L2; all cores share the last level.
-- **Inclusive** caches keep a copy of L1 contents in the lower level (simpler); **exclusive** caches keep each block in one level only (more total capacity).
+### How Cache Levels Are Arranged
 
+- **L1:** Split into instruction cache and data cache; usually private to each core.
+- **L2:** Unified (instructions + data); usually private to each core.
+- **L3:** Unified and usually shared by all CPU cores.
+- **Inclusive:** Lower cache keeps copies of data from upper cache levels.
+- **Exclusive:** A block exists in only one cache level.
+
+> **L1 = Split + Private**  
+> **L2 = Unified + Private**  
+> **L3 = Unified + Shared**
 ---
 
 ## 5. Writes and other tricks
 
-### What happens on a store?
-| Policy | Behaviour |
-|---|---|
-| **Write-through** | updates cache **and** next level every time. Simple, lots of traffic |
-| **Write-back** | updates only the cache, marks block **dirty**, writes down on eviction. Less traffic, the norm |
 
-- On a store **miss**: *write-allocate* fetches the block first (typical with write-back); *no-write-allocate* writes straight through.
-- A **write buffer** lets the core move on without waiting for stores to reach memory.
 
-### Three helpers
-- **Victim cache**: tiny store for recently evicted blocks; catches conflict misses cheaply.
-- **Prefetching**: fetch blocks *before* they're asked for (too eager = cache pollution).
-- **Non-blocking cache**: keeps serving hits while misses are pending; tracks several misses at once. Essential for out-of-order cores.
+### Write Policies
+
+When the CPU changes data, the cache needs to decide when to update the next memory level.
+
+- **Write-through:** Updates the cache and RAM/next level immediately. Simple but creates more memory traffic.
+- **Write-back:** Updates only the cache and marks the block **dirty**. It writes to the next level only when the block is evicted. Less traffic and commonly used.
+
+### Store Miss
+
+When the CPU writes to data that is not in the cache:
+
+- **Write-allocate:** Fetch the block into the cache first, then write to it. Common with write-back.
+- **No-write-allocate:** Write directly to the next memory level without bringing the block into the cache.
+
+### Write Buffer
+
+A **write buffer** temporarily holds data waiting to be written to the next memory level.
+
+> It allows the CPU to continue working instead of waiting for the write to finish.
+
+### Three Cache Helpers
+
+- **Victim Cache:** A small cache that stores recently evicted blocks and can reduce conflict misses.
+- **Prefetching:** Brings data into the cache before the CPU needs it. Too much prefetching can waste cache space.
+- **Non-blocking Cache:** Allows the cache to continue serving other hits while a miss is being handled.
+
+> **Write-through = write immediately**  
+> **Write-back = write later**  
+> **Write-allocate = bring block first**  
+> **No-write-allocate = write directly**  
+> **Write buffer = don't make CPU wait**  
+> **Prefetch = get data early**  
+> **Victim cache = keep recently evicted data**  
+> **Non-blocking = keep serving while waiting**
 
 ---
 
@@ -274,29 +411,3 @@ Languages wrap these in "atomics", but locks and flags rely on them.
 
 ---
 
-## 9. Check yourself
-
-1. L1 hit = 2 cycles, miss rate 10%, penalty 100 cycles. AMAT?
-2. Two blocks keep evicting each other in a mostly empty direct-mapped cache. Which miss type, and the fix?
-3. Core 2 holds X in state M. Core 0 reads X. What happens?
-
-<details>
-<summary>Answers</summary>
-
-1. 2 + 0.10 × 100 = **12 cycles**.
-2. **Conflict misses**; more associativity (2-way would do).
-3. Core 2 supplies the data and writes it back to memory; both copies become **Shared (S)**.
-</details>
-
----
-
-## 10. Cheat sheet
-
-- Caches exploit **temporal + spatial locality**; data moves in **64-byte lines**.
-- Address = **tag | index | offset**.
-- Misses: **compulsory, capacity, conflict**.
-- **AMAT = hit time + miss rate × miss penalty**, applied level by level.
-- **Write-back** + **prefetching** + **non-blocking** caches keep cores fed.
-- **TLB** caches address translations.
-- **MESI**: many readers or one writer.
-- **Coherence ≠ consistency**; fences control cross-location order.
